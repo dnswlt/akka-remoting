@@ -3,7 +3,6 @@ package de.reondo.akka.remoting;
 import akka.actor.ActorPath;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
-import com.sun.webkit.dom.RectImpl;
 import de.reondo.akka.remoting.actor.ReceiverActor;
 import de.reondo.akka.remoting.actor.SenderActor;
 
