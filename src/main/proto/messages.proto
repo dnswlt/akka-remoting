@@ -1,0 +1,18 @@
+
+syntax = "proto3";
+
+package de.reondo.akka.remoting.proto;
+
+message BinaryMessage {
+    string id = 1;
+    int64 timestamp = 2;
+    bytes payload = 3;
+}
+
+message ResetCounter {
+
+}
+
+message Backpressure {
+    int32 numAcceptedMessages = 1;
+}
