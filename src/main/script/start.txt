@@ -1,0 +1,6 @@
+java "-Dconfig.file=src\main\resources\sender.artery.conf" -jar .\target\akka-remoting-1.0-SNAPSHOT.jar edward Send akka://johnny@192.168.99.10:25521/user/receiver 10
+java "-Dconfig.file=src\main\resources\receiver.artery.conf" -jar .\target\akka-remoting-1.0-SNAPSHOT.jar johnny Receive
+
+
+java "-Dconfig.file=src\main\resources\sender.artery.conf" -jar .\target\akka-remoting-1.0-SNAPSHOT.jar edward Send akka://urmel@192.168.99.144:25521/user/receiver 10000
+java -Dconfig.file=src/main/resources/receiver.artery.conf -jar ./target/akka-remoting-1.0-SNAPSHOT.jar urmel Receive
