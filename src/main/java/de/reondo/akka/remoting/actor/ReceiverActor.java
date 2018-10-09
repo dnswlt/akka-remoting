@@ -2,18 +2,20 @@ package de.reondo.akka.remoting.actor;
 
 import akka.actor.AbstractActorWithTimers;
 import akka.actor.ActorRef;
+import akka.actor.ExtendedActorSystem;
 import akka.actor.Props;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import de.reondo.akka.remoting.messages.AnnounceRun;
+import akka.remote.WireFormats;
+import akka.remote.serialization.ProtobufSerializer;
 import de.reondo.akka.remoting.proto.Messages;
 
 import java.time.Duration;
 
 public class ReceiverActor extends AbstractActorWithTimers {
     private final LoggingAdapter log = Logging.getLogger(getContext().getSystem(), this);
-    private static final int BACKPRESSURE_VALUE = 1000;
 
+    private final int backpressureValue;
     private long firstMessageReceived;
     private long lastMessageReceived;
     private int numMessagesReceived;
@@ -21,30 +23,37 @@ public class ReceiverActor extends AbstractActorWithTimers {
     private int remainingRequestedMessages;
     private ActorRef sender;
 
-    public static Props props() {
-        return Props.create(ReceiverActor.class);
+    public static Props props(int backpressureValue) {
+        return Props.create(ReceiverActor.class, backpressureValue);
     }
 
-    public ReceiverActor() {
+    public ReceiverActor(int backpressureValue) {
+        this.backpressureValue = backpressureValue;
         getTimers().startPeriodicTimer("TickKey", "Tick", Duration.ofMillis(1000));
+        log.info("Receiver starts with backpressureValue={}", backpressureValue);
     }
 
     @Override
     public Receive createReceive() {
         return receiveBuilder()
             .match(Messages.BinaryMessage.class, this::onBinaryMessage)
-            .match(AnnounceRun.class, this::onAnnounceRun)
+            .match(Messages.AnnounceRun.class, this::onAnnounceRun)
             .matchEquals("Tick", t -> logStatus())
             .build();
     }
 
-    private void onAnnounceRun(AnnounceRun announceRun) {
+    private ActorRef deserializeActorRef(String serializedActorRef) {
+        WireFormats.ActorRefData actorRefData = WireFormats.ActorRefData.newBuilder().setPath(serializedActorRef).build();
+        return ProtobufSerializer.deserializeActorRef((ExtendedActorSystem) getContext().getSystem(), actorRefData);
+    }
+
+    private void onAnnounceRun(Messages.AnnounceRun announceRun) {
         numMessagesReceived = 0;
         firstMessageReceived = 0;
         lastMessageReceived = 0;
-        sender = announceRun.getSender();
+        sender = deserializeActorRef(announceRun.getSerializedActorRef());
         numWarmupMessages = announceRun.getNumWarmupMessages();
-        remainingRequestedMessages = BACKPRESSURE_VALUE;
+        remainingRequestedMessages = backpressureValue;
         sender.tell(Messages.Backpressure.newBuilder()
             .setNumAcceptedMessages(remainingRequestedMessages)
             .build(), getSelf());
@@ -64,14 +73,15 @@ public class ReceiverActor extends AbstractActorWithTimers {
         } else {
             if (numMessagesReceived == 0) {
                 firstMessageReceived = now;
+                log.info("Warmup finished. Run begins");
             }
             lastMessageReceived = now;
             numMessagesReceived++;
         }
         remainingRequestedMessages--;
         if (remainingRequestedMessages < 100) {
-            sender.tell(Messages.Backpressure.newBuilder().setNumAcceptedMessages(BACKPRESSURE_VALUE).build(), getSelf());
-            remainingRequestedMessages += BACKPRESSURE_VALUE;
+            sender.tell(Messages.Backpressure.newBuilder().setNumAcceptedMessages(backpressureValue).build(), getSelf());
+            remainingRequestedMessages += backpressureValue;
         }
     }
 }

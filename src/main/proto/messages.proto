@@ -16,3 +16,9 @@ message ResetCounter {
 message Backpressure {
     int32 numAcceptedMessages = 1;
 }
+
+message AnnounceRun {
+    string serializedActorRef = 1 ;
+    int32 numWarmupMessages = 2;
+    int32 numMessages = 3;
+}

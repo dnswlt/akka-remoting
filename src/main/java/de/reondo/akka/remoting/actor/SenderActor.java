@@ -3,8 +3,9 @@ package de.reondo.akka.remoting.actor;
 import akka.actor.*;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
+import akka.remote.WireFormats;
+import akka.remote.serialization.ProtobufSerializer;
 import com.google.protobuf.ByteString;
-import de.reondo.akka.remoting.messages.AnnounceRun;
 import de.reondo.akka.remoting.proto.Messages;
 
 import java.time.ZonedDateTime;
@@ -45,7 +46,7 @@ public class SenderActor extends AbstractActor {
     }
 
     private void onBackpressure(Messages.Backpressure backpressure) {
-        byte[] payload = new byte[128];
+        byte[] payload = new byte[512];
         ZonedDateTime now = ZonedDateTime.now();
         for (int i = 0; i < payload.length; i++) {
             payload[i] = (byte) i;
@@ -54,12 +55,12 @@ public class SenderActor extends AbstractActor {
         UUID messageId = UUID.randomUUID();
         int remaining = Math.min(remainingMessages, backpressure.getNumAcceptedMessages());
         int sent = 0;
+        Messages.BinaryMessage message = Messages.BinaryMessage.newBuilder()
+            .setId(messageId.toString())
+            .setTimestamp(now.toInstant().toEpochMilli())
+            .setPayload(ByteString.copyFrom(payload))
+            .build();
         while (sent < remaining) {
-            Messages.BinaryMessage message = Messages.BinaryMessage.newBuilder()
-                .setId(messageId.toString())
-                .setTimestamp(now.toInstant().toEpochMilli())
-                .setPayload(ByteString.copyFrom(payload))
-                .build();
             receiver.tell(message, getSelf());
             sent++;
         }
@@ -76,7 +77,13 @@ public class SenderActor extends AbstractActor {
         receiver = identity.getActorRef().get();
         int numWarmupMessages = (int) (numMesssages * 0.1);
         remainingMessages = numMesssages + numWarmupMessages;
-        receiver.tell(new AnnounceRun(getSelf(), numWarmupMessages, numMesssages), getSelf());
+        WireFormats.ActorRefData serializedActorRef = ProtobufSerializer.serializeActorRef(getSelf());
+        Messages.AnnounceRun announceRun = Messages.AnnounceRun.newBuilder()
+            .setNumMessages(numMesssages)
+            .setNumWarmupMessages(numWarmupMessages)
+            .setSerializedActorRef(serializedActorRef.getPath())
+            .build();
+        receiver.tell(announceRun, getSelf());
     }
 
     private void onSend(Send send) {

@@ -21,11 +21,12 @@ public class App {
         try {
             if (args[1].equals("Send") && args.length == 4) {
                 ActorRef senderActor = actorSystem.actorOf(SenderActor.props(), "sender");
-                actorSystem.actorOf(ReceiverActor.props(), "receiver");
+//                actorSystem.actorOf(ReceiverActor.props(), "receiver");
                 int numMessages = Integer.parseInt(args[3]);
                 senderActor.tell(new SenderActor.Send(ActorPath.fromString(args[2]), numMessages), ActorRef.noSender());
             } else if (args[1].equals("Receive")) {
-                actorSystem.actorOf(ReceiverActor.props(), "receiver");
+                int backpressureValue = actorSystem.settings().config().getInt("application.receiver.backpressureValue");
+                actorSystem.actorOf(ReceiverActor.props(backpressureValue), "receiver");
             } else {
                 System.out.println("Unknown command " + args[1]);
             }
